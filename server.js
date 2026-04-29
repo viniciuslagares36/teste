@@ -19,14 +19,8 @@ app.get("/api/health", (req, res) => {
 app.get("/api/realtime-vehicles", async (req, res) => {
     try {
         const response = await axios.get(
-            "https://corsproxy.io/?https://www.sistemas.dftrans.df.gov.br/service/gps/operacoes",
-            {
-                timeout: 60000,
-                headers: {
-                    "User-Agent": "Mozilla/5.0",
-                    "Accept": "application/json"
-                }
-            }
+            "https://api.allorigins.win/raw?url=https://www.sistemas.dftrans.df.gov.br/service/gps/operacoes",
+            { timeout: 60000 }
         );
         const vehicles = [];
 

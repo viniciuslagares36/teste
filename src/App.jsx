@@ -24,18 +24,15 @@ const useRouteSearch = () => {
   try {
     console.log('🟢 Buscando veículos Localiza Bus...', coords);
 
-   const getRealtimeVehicles = async () => {
-  try {
-    const response = await axios.get(API_URL);
-
-    console.log(response.data);
-  } catch (err) {
-    console.error(err);
-  }
-};
+    const response = await axios.get(
+      `${API_URL}/realtime-vehicles`,
+      {
+        timeout: 65000
+      }
+    );
 
     if (response.data.success && response.data.vehicles) {
-      console.log(`✅ DFTrans: ${response.data.vehicles.length} veículos ao vivo encontrados`);
+      console.log(`✅ ${response.data.vehicles.length} veículos encontrados`);
       setRealtimeVehicles(response.data.vehicles);
       return response.data.vehicles;
     }
@@ -46,7 +43,6 @@ const useRouteSearch = () => {
     return [];
   }
 };
-
   const searchRoute = async (originAddress, destinationAddress, mode) => {
     if (!originAddress || !destinationAddress) return;
     
