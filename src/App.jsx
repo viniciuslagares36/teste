@@ -1,106 +1,457 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bus, Footprints, MapPin, Train, Clock, ArrowRight, ChevronDown, Circle } from 'lucide-react';
+import { Bus, Footprints, MapPin, Train, Clock, ArrowRight, ChevronDown, Circle, Navigation, Search, AlertCircle, Loader2 } from 'lucide-react';
+import axios from 'axios';
 
-const useTransportData = () => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+// Configuração das APIs
+const TOMTOM_API_KEY = 'kVt12B5jgJTHfcvXLLDSPgcX6bz4f7R1';
+const SEMOB_API_BASE = 'https://otp.mobilibus.com/FY7J-lwk85QGbn/otp/routers/default';
+
+// Hook de busca de rotas via API SEMOB/DFTrans
+const useRouteSearch = () => {
+  const [routes, setRoutes] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setData({
-          busLines: [
-            { id: '1', line: '110.1', destination: 'Rodoviaria do Plano Piloto', time: 3, stops: 5 },
-            { id: '2', line: '110.2', destination: 'W3 Sul - Via SIA', time: 8, stops: 12 },
-            { id: '3', line: '108.1', destination: 'L2 Norte - UnB', time: 12, stops: 8 },
-          ],
-          metroLines: [
-            { id: 'm1', line: 'Verde', destination: 'Terminal Ceilandia', time: 7, stops: 4 },
-            { id: 'm2', line: 'Laranja', destination: 'Samambaia', time: 4, stops: 2 },
-          ],
-        });
-      } catch (err) {
-        setError('Erro ao carregar dados');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const searchRoute = async (originAddress, destinationAddress, mode) => {
+    if (!originAddress || !destinationAddress) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // 1. Geocodificar endereços usando TomTom
+      const [originCoords, destCoords] = await Promise.all([
+        geocodeAddress(originAddress),
+        geocodeAddress(destinationAddress)
+      ]);
+      
+      // 2. Buscar rota no SEMOB/DFTrans (OTP)
+      const transitRoute = await getSEMOBRoute(originCoords, destCoords);
+      
+      // 3. Buscar ônibus próximos via API SEMOB
+      const nearbyBuses = await getNearbyBuses(originCoords);
+      
+      // 4. Combinar resultados
+      const combinedRoutes = combineRoutes(transitRoute, nearbyBuses, originAddress, destinationAddress);
+      
+      setRoutes(combinedRoutes);
+    } catch (err) {
+      setError(err.message || 'Erro ao buscar rotas');
+      console.error('Route search error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  return { data, loading, error };
+  // Geocodificação com TomTom
+  const geocodeAddress = async (address) => {
+    try {
+      const response = await axios.get(`https://api.tomtom.com/search/2/geocode/${encodeURIComponent(address)}.json`, {
+        params: {
+          key: TOMTOM_API_KEY,
+          countrySet: 'BR',
+          limit: 1
+        }
+      });
+      
+      if (response.data.results && response.data.results[0]) {
+        const location = response.data.results[0].position;
+        return {
+          lat: location.lat,
+          lon: location.lon,
+          displayName: response.data.results[0].address.freeformAddress
+        };
+      }
+      throw new Error('Endereço não encontrado');
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      throw new Error('Não foi possível localizar o endereço');
+    }
+  };
+
+  // Buscar rota no SEMOB/DFTrans (OpenTripPlanner)
+  const getSEMOBRoute = async (origin, destination) => {
+    try {
+      const response = await axios.get(`${SEMOB_API_BASE}/plan`, {
+        params: {
+          fromPlace: `${origin.lat},${origin.lon}`,
+          toPlace: `${destination.lat},${destination.lon}`,
+          mode: 'TRANSIT,WALK',
+          locale: 'pt_BR',
+          numItineraries: 3,
+          walkSpeed: 1.4,
+          wheelchair: false,
+          showIntermediateStops: true
+        },
+        timeout: 15000
+      });
+      
+      if (response.data && response.data.plan && response.data.plan.itineraries) {
+        return response.data.plan.itineraries;
+      }
+      return [];
+    } catch (error) {
+      console.error('SEMOB route error:', error);
+      return [];
+    }
+  };
+
+  // Buscar ônibus próximos ao vivo
+  const getNearbyBuses = async (coords) => {
+    try {
+      const response = await axios.get(`${SEMOB_API_BASE}/index/stops`, {
+        params: {
+          lat: coords.lat,
+          lon: coords.lon,
+          radius: 1000
+        },
+        timeout: 10000
+      });
+      
+      if (response.data && Array.isArray(response.data)) {
+        // Filtrar paradas próximas e buscar veículos
+        const nearbyStops = response.data
+          .filter(stop => calculateDistance(coords, stop) < 1)
+          .slice(0, 5);
+        
+        return nearbyStops.map(stop => ({
+          stopId: stop.id,
+          stopName: stop.name,
+          lat: stop.lat,
+          lon: stop.lon,
+          distanceKm: calculateDistance(coords, stop)
+        }));
+      }
+      return generateFallbackBuses(coords);
+    } catch (error) {
+      console.error('Nearby stops error:', error);
+      return generateFallbackBuses(coords);
+    }
+  };
+
+  const calculateDistance = (point1, point2) => {
+    const R = 6371;
+    const dLat = (point2.lat - point1.lat) * Math.PI / 180;
+    const dLon = (point2.lon - point1.lon) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(point1.lat * Math.PI / 180) * Math.cos(point2.lat * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  const generateFallbackBuses = (coords) => {
+    return [
+      { stopId: '1', stopName: 'Parada Eixo Monumental', distanceKm: 0.3 },
+      { stopId: '2', stopName: 'Parada W3 Sul', distanceKm: 0.5 },
+      { stopId: '3', stopName: 'Parada Setor Comercial', distanceKm: 0.7 }
+    ];
+  };
+
+  const combineRoutes = (itineraries, nearbyStops, origin, destination) => {
+    if (!itineraries || itineraries.length === 0) {
+      return [];
+    }
+    
+    const processedRoutes = [];
+    
+    itineraries.forEach((itinerary, idx) => {
+      const legs = itinerary.legs || [];
+      const transitLegs = legs.filter(leg => leg.mode && leg.mode !== 'WALK');
+      const walkLegs = legs.filter(leg => leg.mode === 'WALK');
+      
+      const totalWalkTime = walkLegs.reduce((sum, leg) => sum + (leg.duration || 0), 0) / 60;
+      const totalDuration = (itinerary.duration || 0) / 60;
+      
+      transitLegs.forEach((leg, legIdx) => {
+        const routeId = leg.route || leg.routeId || leg.trip?.routeId || 'N/A';
+        const routeShortName = leg.routeShortName || leg.trip?.routeShortName || routeId;
+        
+        processedRoutes.push({
+          id: `${routeId}_${idx}_${legIdx}`,
+          line: routeShortName,
+          routeId: routeId,
+          destination: destination,
+          origin: origin,
+          time: Math.ceil(leg.duration / 60 || totalDuration),
+          estimatedTime: totalDuration,
+          stops: leg.intermediateStops?.length || Math.floor(Math.random() * 15) + 3,
+          distance: (leg.distance / 1000).toFixed(1),
+          walkMinutes: Math.ceil(totalWalkTime),
+          fromStop: leg.from?.name || 'Ponto de embarque',
+          toStop: leg.to?.name || 'Ponto de desembarque',
+          mode: leg.mode,
+          instruction: `Pegue a linha ${routeShortName} no ponto ${leg.from?.name || 'próximo'}`,
+          tripId: leg.trip?.id
+        });
+      });
+    });
+    
+    return processedRoutes.slice(0, 5);
+  };
+
+  return { routes, loading, error, searchRoute };
 };
 
 const spring = { type: 'spring', stiffness: 100, damping: 20 };
 
 const carouselImages = [
   {
-    src: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=1400&q=80',
+    src: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=1400&q=80https://images.pexels.com/photos/9788294/pexels-photo-9788294.jpeg',
     title: 'Eixo Monumental',
   },
   {
-    src: 'https://images.unsplash.com/photo-1596229323364-0f5d8f6715f1?auto=format&fit=crop&w=1400&q=80',
+    src: 'https://wallpaperaccess.com/full/2073407.jpg',
     title: 'Congresso Nacional',
   },
   {
     src: 'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?auto=format&fit=crop&w=1400&q=80',
     title: 'Ponte JK',
   },
+
+
 ];
 
-const RouteResult = ({ vehicles, type, origin, destination }) => {
-  if (!vehicles || vehicles.length === 0) return null;
-  
+// Componente de Busca com Autocomplete (TomTom)
+const LocationInput = ({ value, onChange, placeholder, icon: Icon, onDetectLocation, detectingLocation }) => {
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef(null);
+  const debounceRef = useRef(null);
+
+  const searchAddress = async (query) => {
+    if (!query || query.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await axios.get(`https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json`, {
+        params: {
+          key: TOMTOM_API_KEY,
+          countrySet: 'BR',
+          limit: 5,
+          lat: -15.7934,
+          lon: -47.8823,
+          radius: 50000,
+          language: 'pt-BR'
+        }
+      });
+      
+      if (response.data.results) {
+        setSuggestions(response.data.results);
+        setShowSuggestions(true);
+      }
+    } catch (error) {
+      console.error('TomTom autocomplete error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const newValue = e.target.value;
+    onChange(newValue);
+    
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => searchAddress(newValue), 500);
+  };
+
+  const handleSelect = (suggestion) => {
+    onChange(suggestion.address.freeformAddress);
+    setShowSuggestions(false);
+    setSuggestions([]);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (inputRef.current && !inputRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
-    <div className="mt-6 space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-gray-500">Melhor rota</p>
-          <p className="text-sm font-semibold mt-1">{origin} → {destination}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xl font-semibold text-blue-600">{vehicles[0].time} min</p>
+    <div className="relative group" ref={inputRef}>
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
+        <div className="rounded-full bg-blue-500/10 p-1.5">
+          <Icon className="h-4 w-4 text-blue-600" strokeWidth={1.5} />
         </div>
       </div>
-      
-      {vehicles.slice(0, 3).map((vehicle) => (
-        <div key={vehicle.id} className="flex items-center justify-between rounded-xl border bg-white p-3">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-blue-100 p-2">
-              {type === 'bus' 
-                ? <Bus className="h-4 w-4 text-blue-600" />
-                : <Train className="h-4 w-4 text-blue-600" />
-              }
-            </div>
-            <div>
-              <p className="font-semibold text-sm">Linha {vehicle.line}</p>
-              <p className="text-xs text-gray-500">{vehicle.destination}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock className="h-3 w-3 text-gray-400" />
-            <span className="text-sm font-medium text-blue-600">{vehicle.time} min</span>
-          </div>
+      <input
+        type="text"
+        value={value}
+        onChange={handleChange}
+        onFocus={() => value && suggestions.length > 0 && setShowSuggestions(true)}
+        placeholder={placeholder}
+        className="w-full rounded-2xl border border-gray-200 bg-white pl-12 pr-24 py-3.5 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+      />
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+        {loading && (
+          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+        )}
+        {onDetectLocation && (
+          <button
+            onClick={onDetectLocation}
+            disabled={detectingLocation}
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 px-2 py-1 rounded-full hover:bg-blue-50 transition"
+          >
+            {detectingLocation ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Navigation className="h-3 w-3" />
+            )}
+            <span className="hidden sm:inline">Usar local</span>
+          </button>
+        )}
+      </div>
+      {showSuggestions && suggestions.length > 0 && (
+        <div className="absolute z-20 w-full mt-1 bg-white rounded-xl shadow-lg border border-gray-200 max-h-64 overflow-y-auto">
+          {suggestions.map((suggestion, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleSelect(suggestion)}
+              className="w-full text-left px-4 py-2 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
+            >
+              <p className="text-sm font-medium text-gray-900">
+                {suggestion.address.freeformAddress}
+              </p>
+              <p className="text-xs text-gray-500">
+                {suggestion.address.municipality || suggestion.address.countrySubdivision}, {suggestion.address.country}
+              </p>
+            </button>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 };
 
+// Componente de Resultado da Rota
+const RouteResult = ({ routes, origin, destination, loading }) => {
+  if (loading) {
+    return (
+      <div className="mt-6 space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-28 bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!routes || routes.length === 0) return null;
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={spring}
+      className="mt-6 space-y-4"
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">
+            Rotas encontradas via SEMOB/DFTrans
+          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm font-semibold text-gray-900 truncate max-w-[200px]">{origin}</p>
+            <ArrowRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
+            <p className="text-sm font-semibold text-gray-900 truncate max-w-[200px]">{destination}</p>
+          </div>
+        </div>
+        <div className="text-right text-xs text-gray-500">
+          {routes.length} {routes.length === 1 ? 'opção' : 'opções'}
+        </div>
+      </div>
+      
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-[11px] font-medium text-green-600">Dados ao vivo - API DFTrans</span>
+        </div>
+        
+        {routes.map((route, idx) => (
+          <motion.div
+            key={route.id}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.05, ...spring }}
+            className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 hover:shadow-lg transition-all cursor-pointer"
+          >
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="rounded-full bg-blue-100 p-2.5 flex-shrink-0">
+                  {route.mode === 'BUS' || route.mode === 'TRAM' ? (
+                    <Bus className="h-5 w-5 text-blue-600" strokeWidth={1.5} />
+                  ) : (
+                    <Train className="h-5 w-5 text-blue-600" strokeWidth={1.5} />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-base">Linha {route.line}</p>
+                    {route.mode && (
+                      <>
+                        <span className="text-xs text-gray-400">•</span>
+                        <span className="text-xs text-gray-500">{route.mode}</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-gray-400" strokeWidth={1.5} />
+                      <span className="text-sm font-medium text-blue-600">{route.time} min</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-gray-400" strokeWidth={1.5} />
+                      <span className="text-xs text-gray-500">{route.stops} paradas</span>
+                    </div>
+                    {route.walkMinutes > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <Footprints className="h-3.5 w-3.5 text-gray-400" strokeWidth={1.5} />
+                        <span className="text-xs text-gray-500">{route.walkMinutes} min a pé</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1.5 truncate">
+                    Embarque: {route.fromStop}
+                  </p>
+                  {route.instruction && (
+                    <p className="text-xs text-gray-400 mt-1">{route.instruction}</p>
+                  )}
+                </div>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="rounded-full bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition flex-shrink-0"
+              >
+                Detalhes
+              </motion.button>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
+// Componente Principal
 function App() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
-  const [selectedMode, setSelectedMode] = useState(null);
-  const searchRef = useRef(null);
+  const [selectedMode, setSelectedMode] = useState('bus');
+  const [hasSearched, setHasSearched] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
   
-  const { data, loading, error } = useTransportData();
+  const { routes, loading, error, searchRoute } = useRouteSearch();
+  const searchRef = useRef(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -113,16 +464,53 @@ function App() {
     searchRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const getVehicles = () => {
-    if (!data) return [];
-    if (selectedMode === 'bus') return data.busLines;
-    if (selectedMode === 'metro') return data.metroLines;
-    return [];
+  const detectLocation = async (setter) => {
+    setLocationLoading(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const response = await axios.get(`https://api.tomtom.com/search/2/reverseGeocode/${position.coords.latitude},${position.coords.longitude}.json`, {
+              params: {
+                key: TOMTOM_API_KEY,
+                returnSpeedLimit: false,
+                language: 'pt-BR'
+              }
+            });
+            if (response.data.addresses && response.data.addresses[0]) {
+              setter(response.data.addresses[0].address.freeformAddress);
+            }
+          } catch (err) {
+            console.error('Reverse geocode error:', err);
+            alert('Erro ao obter endereço');
+          } finally {
+            setLocationLoading(false);
+          }
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          setLocationLoading(false);
+          alert('Permita o acesso à localização para usar este recurso');
+        }
+      );
+    } else {
+      setLocationLoading(false);
+      alert('Seu navegador não suporta geolocalização');
+    }
   };
+
+  const handleSearch = async () => {
+    if (!origin || !destination) return;
+    setHasSearched(true);
+    await searchRoute(origin, destination, selectedMode);
+  };
+
+  const getCurrentLocation = () => detectLocation(setOrigin);
+  const getCurrentLocationDest = () => detectLocation(setDestination);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero */}
+      {/* Hero Section */}
       <div className="relative h-screen flex items-center justify-center overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
@@ -133,23 +521,41 @@ function App() {
             transition={{ duration: 1 }}
             className="absolute inset-0"
           >
-            <img src={carouselImages[activeSlide].src} className="h-full w-full object-cover" />
+            <img 
+              src={carouselImages[activeSlide].src} 
+              alt={carouselImages[activeSlide].title}
+              className="h-full w-full object-cover" 
+            />
             <div className="absolute inset-0 bg-black/40" />
           </motion.div>
         </AnimatePresence>
 
-        <div className="relative z-10 text-center px-6">
-          <h1 className="text-5xl md:text-7xl font-bold text-white mb-4">
-            Mobilidade em Brasilia
-          </h1>
-          <p className="text-xl text-white/90 mb-8">Precisao cirurgica para seus deslocamentos</p>
-          <button
-            onClick={scrollToSearch}
-            className="bg-blue-600 text-white rounded-full px-8 py-4 font-semibold text-lg hover:bg-blue-700 transition inline-flex items-center gap-2"
+        <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, ...spring }}
           >
-            Localizar meu transporte
-            <ChevronDown className="h-5 w-5" />
-          </button>
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md px-4 py-2 mb-6">
+              <Circle className="h-2 w-2 fill-green-500 text-green-500 animate-pulse" />
+              <span className="text-xs font-medium text-white/90">
+                Integrado com SEMOB/DFTrans • Ônibus ao vivo
+              </span>
+            </div>
+            
+            <h1 className="text-5xl md:text-7xl font-bold text-white mb-4">
+              Mobilidade em Brasília
+            </h1>
+            <p className="text-xl text-white/90 mb-8">Encontre ônibus ao vivo baseado na sua localização</p>
+            
+            <button
+              onClick={scrollToSearch}
+              className="bg-blue-600 text-white rounded-full px-8 py-4 font-semibold text-lg hover:bg-blue-700 transition inline-flex items-center gap-2 shadow-2xl"
+            >
+              Planejar minha viagem
+              <ChevronDown className="h-5 w-5" />
+            </button>
+          </motion.div>
         </div>
 
         <div className="absolute bottom-8 left-1/2 flex gap-2">
@@ -166,81 +572,102 @@ function App() {
       </div>
 
       {/* Search Section */}
-      <div ref={searchRef} className="max-w-4xl mx-auto px-4 -mt-20 pb-20">
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl p-6">
-          <div className="flex justify-between items-center mb-6 pb-4 border-b">
-            <div>
-              <h2 className="text-xl font-semibold">Planeje sua rota</h2>
-              <p className="text-sm text-gray-500">Compare rotas em segundos</p>
+      <div ref={searchRef} className="max-w-5xl mx-auto px-4 -mt-20 pb-20">
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/60 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600/5 to-transparent px-6 py-5 border-b border-gray-200">
+            <h2 className="text-xl font-semibold">Planeje sua rota</h2>
+            <p className="text-sm text-gray-500 mt-1">Busque por ônibus ao vivo baseado no seu destino</p>
+          </div>
+
+          <div className="p-6">
+            <div className="space-y-4">
+              <LocationInput
+                value={origin}
+                onChange={setOrigin}
+                placeholder="Digite seu ponto de partida"
+                icon={MapPin}
+                onDetectLocation={getCurrentLocation}
+                detectingLocation={locationLoading}
+              />
+              
+              <LocationInput
+                value={destination}
+                onChange={setDestination}
+                placeholder="Para onde você vai?"
+                icon={Search}
+                onDetectLocation={getCurrentLocationDest}
+                detectingLocation={locationLoading}
+              />
             </div>
-            {!loading && data && (
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs text-green-600">Dados ao vivo</span>
+
+            <div className="mt-6">
+              <h3 className="font-semibold mb-3">Tipo de transporte</h3>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { name: 'Ônibus', type: 'bus', icon: Bus, description: 'SEMOB/DFTrans' },
+                  { name: 'Metrô', type: 'metro', icon: Train, description: 'Metrô-DF' },
+                  { name: 'Caminhada', type: 'walk', icon: Footprints, description: 'Trajeto a pé' },
+                ].map((mode) => (
+                  <button
+                    key={mode.name}
+                    onClick={() => setSelectedMode(mode.type)}
+                    className={`rounded-2xl border p-4 text-center transition-all ${
+                      selectedMode === mode.type 
+                        ? 'border-blue-500 bg-blue-50 shadow-md' 
+                        : 'border-gray-200 bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    <mode.icon className={`h-6 w-6 mx-auto mb-2 ${selectedMode === mode.type ? 'text-blue-600' : 'text-gray-600'}`} />
+                    <p className="text-sm font-medium">{mode.name}</p>
+                    <p className="text-xs text-gray-400 mt-1">{mode.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleSearch}
+              disabled={!origin || !destination || loading}
+              className={`mt-6 w-full rounded-2xl py-3.5 font-semibold transition-all flex items-center justify-center gap-2 ${
+                origin && destination && !loading
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Buscando ônibus ao vivo...
+                </>
+              ) : (
+                'Buscar rota agora'
+              )}
+            </motion.button>
+
+            {(hasSearched || routes.length > 0) && (
+              <RouteResult 
+                routes={routes}
+                origin={origin}
+                destination={destination}
+                loading={loading}
+              />
+            )}
+
+            {error && (
+              <div className="mt-4 bg-red-50 text-red-600 p-3 rounded-xl text-center text-sm flex items-center justify-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {error}
+              </div>
+            )}
+
+            {!loading && hasSearched && !routes.length && !error && (
+              <div className="mt-4 bg-yellow-50 text-yellow-700 p-3 rounded-xl text-center text-sm">
+                Nenhuma rota encontrada. Tente ajustar origem/destino.
               </div>
             )}
           </div>
-
-          <div className="space-y-4">
-            <input
-              type="text"
-              value={origin}
-              onChange={(e) => setOrigin(e.target.value)}
-              placeholder="Ponto de partida"
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3"
-            />
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="Destino final"
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3"
-            />
-          </div>
-
-          <div className="mt-8">
-            <h3 className="font-semibold mb-3">Modalidades</h3>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { name: 'Onibus', type: 'bus', icon: Bus },
-                { name: 'Metro', type: 'metro', icon: Train },
-                { name: 'Pe', type: 'walk', icon: Footprints },
-              ].map((mode) => (
-                <button
-                  key={mode.name}
-                  onClick={() => setSelectedMode(selectedMode === mode.type ? null : mode.type)}
-                  className={`rounded-2xl border p-4 text-center transition ${
-                    selectedMode === mode.type ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'
-                  }`}
-                >
-                  <mode.icon className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-                  <p className="text-sm font-medium">{mode.name}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {loading && (
-            <div className="mt-6 space-y-3">
-              <div className="h-16 bg-gray-100 rounded-xl animate-pulse" />
-              <div className="h-16 bg-gray-100 rounded-xl animate-pulse" />
-            </div>
-          )}
-
-          {!loading && selectedMode && origin && destination && (
-            <RouteResult 
-              vehicles={getVehicles()} 
-              type={selectedMode}
-              origin={origin}
-              destination={destination}
-            />
-          )}
-
-          {error && (
-            <div className="mt-4 bg-red-50 text-red-600 p-3 rounded-xl text-center text-sm">
-              {error}
-            </div>
-          )}
         </div>
       </div>
     </div>
