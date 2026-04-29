@@ -710,7 +710,7 @@ function App() {
             <div className="inline-flex items-center gap-1.5 md:gap-2 rounded-full bg-white/10 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 mb-4 md:mb-6">
               <Circle className="h-1.5 w-1.5 md:h-2 md:w-2 fill-green-500 text-green-500 animate-pulse" />
               <span className="text-[10px] md:text-xs font-medium text-white/90">
-                🚀 GPS REAL - Veículos monitorados ao vivo
+                 GPS REAL - Veículos monitorados ao vivo
               </span>
             </div>
             
@@ -749,7 +749,7 @@ function App() {
         <div className="bg-white/80 backdrop-blur-xl rounded-2xl md:rounded-3xl shadow-xl border border-white/60 overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600/5 to-transparent px-4 md:px-6 py-3 md:py-5 border-b border-gray-200">
             <h2 className="text-lg md:text-xl font-semibold text-gray-900">Planeje sua rota</h2>
-            <p className="text-xs md:text-sm text-gray-500 mt-0.5 md:mt-1">Busque por ônibus com GPS REAL via Moovit</p>
+            <p className="text-xs md:text-sm text-gray-500 mt-0.5 md:mt-1">Busque por ônibus ao vivo</p>
           </div>
 
           <div className="p-4 md:p-6">
@@ -777,7 +777,7 @@ function App() {
               <h3 className="font-semibold text-sm md:text-base text-gray-900 mb-2 md:mb-3">Tipo de transporte</h3>
               <div className="grid grid-cols-3 gap-2 md:gap-3">
                 {[
-                  { name: 'Ônibus', type: 'bus', icon: Bus, description: 'GPS Real via Moovit' },
+                  { name: 'Ônibus', type: 'bus', icon: Bus, description: 'GPS Real ao vivo' },
                   { name: 'Metrô', type: 'metro', icon: Train, description: 'Metrô-DF' },
                   { name: 'Caminhada', type: 'walk', icon: Footprints, description: 'Trajeto a pé' },
                 ].map((mode) => (
