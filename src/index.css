@@ -8,3 +8,27 @@ body {
   -webkit-font-smoothing: antialiased;
   background-color: #f5f5f7;
 }
+
+/* Breakpoints personalizados */
+@layer utilities {
+  /* Telas muito pequenas (menos de 480px) */
+  @media (max-width: 480px) {
+    .xs\:inline {
+      display: inline;
+    }
+  }
+  
+  /* Ajustes para iPhone SE e similares */
+  @media (max-width: 375px) {
+    .text-hero-mobile {
+      font-size: 2rem !important;
+    }
+  }
+  
+  /* Mantém o glassmorphism em telas pequenas */
+  @media (max-width: 640px) {
+    .backdrop-blur-xl {
+      backdrop-filter: blur(10px);
+    }
+  }
+}
