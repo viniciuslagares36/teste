@@ -198,16 +198,16 @@ const spring = { type: 'spring', stiffness: 100, damping: 20 };
 
 const carouselImages = [
   {
-    src: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?auto=format&fit=crop&w=1400&q=80https://images.pexels.com/photos/9788294/pexels-photo-9788294.jpeg',
-    title: 'Eixo Monumental',
+    src: 'https://wallpaperaccess.com/full/2073412.jpg',
+    title: 'Catedral de Brasília',
   },
   {
     src: 'https://wallpaperaccess.com/full/2073407.jpg',
-    title: 'Congresso Nacional',
+    title: 'Estadio Nacional Mané Garrincha',
   },
   {
-    src: 'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?auto=format&fit=crop&w=1400&q=80',
-    title: 'Ponte JK',
+    src: 'https://wallpaperaccess.com/full/2073416.jpg',
+    title: 'Brasília à noite',
   },
 
 
@@ -539,14 +539,14 @@ function App() {
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md px-4 py-2 mb-6">
               <Circle className="h-2 w-2 fill-green-500 text-green-500 animate-pulse" />
               <span className="text-xs font-medium text-white/90">
-                Integrado com SEMOB/DFTrans • Ônibus ao vivo
+                 • Transportes ao vivo
               </span>
             </div>
             
             <h1 className="text-5xl md:text-7xl font-bold text-white mb-4">
               Mobilidade em Brasília
             </h1>
-            <p className="text-xl text-white/90 mb-8">Encontre ônibus ao vivo baseado na sua localização</p>
+            <p className="text-xl text-white/90 mb-8">O monitoramento mais veloz da capital, a um toque de você.</p>
             
             <button
               onClick={scrollToSearch}
