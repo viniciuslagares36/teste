@@ -6,7 +6,7 @@ import axios from 'axios';
 // Configuração das APIs
 const TOMTOM_API_KEY = 'kVt12B5jgJTHfcvXLLDSPgcX6bz4f7R1';
 const SEMOB_API_BASE = 'https://otp.mobilibus.com/FY7J-lwk85QGbn/otp/routers/default';
-const MOOVIT_API_URL = 'http://localhost:3001/api'; // Backend do Moovit
+const API_URL = 'https://teste-6eye.onrender.com/api';
 
 // Hook de busca de rotas via API SEMOB/DFTrans com GPS Real do Moovit
 const useRouteSearch = () => {
@@ -19,30 +19,31 @@ const useRouteSearch = () => {
   const isSearchingRef = useRef(false);
   const intervalRef = useRef(null);
 
-  // Buscar veículos em tempo REAL via Moovit Client
+  // Buscar veículos em tempo REAL 
   const getRealtimeVehicles = async (coords) => {
-    try {
-      console.log('🟢 Buscando veículos em tempo real Moovit...', coords);
-      
-      const response = await axios.get(`${MOOVIT_API_URL}/realtime-vehicles`, {
-        timeout: 10000,
-        params: {
-          lat: coords?.lat || -15.7934,
-          lon: coords?.lon || -47.8823
-        }
-      });
-      
-      if (response.data.success && response.data.vehicles) {
-        console.log(`✅ Moovit: ${response.data.vehicles.length} veículos ao vivo encontrados`);
-        setRealtimeVehicles(response.data.vehicles);
-        return response.data.vehicles;
+  try {
+    console.log('🟢 Buscando veículos Localiza Bus...', coords);
+
+    const response = await axios.get(`${API_URL}/realtime-vehicles`, {
+      timeout: 65000,
+      params: {
+        lat: coords?.lat || -15.7934,
+        lon: coords?.lon || -47.8823
       }
-      return [];
-    } catch (error) {
-      console.error('❌ Erro ao buscar veículos Moovit:', error.message);
-      return [];
+    });
+
+    if (response.data.success && response.data.vehicles) {
+      console.log(`✅ DFTrans: ${response.data.vehicles.length} veículos ao vivo encontrados`);
+      setRealtimeVehicles(response.data.vehicles);
+      return response.data.vehicles;
     }
-  };
+
+    return [];
+  } catch (error) {
+    console.error('❌ Erro ao buscar veículos DFTrans:', error.message);
+    return [];
+  }
+};
 
   const searchRoute = async (originAddress, destinationAddress, mode) => {
     if (!originAddress || !destinationAddress) return;
