@@ -18,10 +18,12 @@ app.get("/api/health", (req, res) => {
 
 app.get("/api/realtime-vehicles", async (req, res) => {
     try {
-        const response = await axios.get(
-            "https://api.allorigins.win/raw?url=https://www.sistemas.dftrans.df.gov.br/service/gps/operacoes",
-            { timeout: 60000 }
-        );
+  const response = await axios.get(
+  "https://api.allorigins.win/raw?url=https://www.sistemas.dftrans.df.gov.br/service/gps/operacoes",
+  {
+    timeout: 60000
+  }
+);
         const vehicles = [];
 
         response.data.forEach((operadora) => {
