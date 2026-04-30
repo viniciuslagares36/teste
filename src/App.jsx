@@ -14,70 +14,70 @@ const useRouteSearch = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [realtimeVehicles, setRealtimeVehicles] = useState([]);
-  
+
   // Controle de requisições simultâneas e intervalo
   const isSearchingRef = useRef(false);
   const intervalRef = useRef(null);
 
   // Buscar veículos em tempo REAL 
   const getRealtimeVehicles = async (coords) => {
-  try {
-    console.log('🟢 Buscando veículos Localiza Bus...', coords);
+    try {
+      console.log('🟢 Buscando veículos Localiza Bus...', coords);
 
-    const response = await axios.get(
-      `${API_URL}/realtime-vehicles`,
-      {
-        timeout: 65000
+      const response = await axios.get(
+        `${API_URL}/realtime-vehicles`,
+        {
+          timeout: 65000
+        }
+      );
+
+      if (response.data.success && response.data.vehicles) {
+        console.log(`✅ ${response.data.vehicles.length} veículos encontrados`);
+        setRealtimeVehicles(response.data.vehicles);
+        return response.data.vehicles;
       }
-    );
 
-    if (response.data.success && response.data.vehicles) {
-      console.log(`✅ ${response.data.vehicles.length} veículos encontrados`);
-      setRealtimeVehicles(response.data.vehicles);
-      return response.data.vehicles;
+      return [];
+    } catch (error) {
+      console.error('❌ Erro ao buscar veículos DFTrans:', error.message);
+      return [];
     }
-
-    return [];
-  } catch (error) {
-    console.error('❌ Erro ao buscar veículos DFTrans:', error.message);
-    return [];
-  }
-};
+  };
   const searchRoute = async (originAddress, destinationAddress, mode) => {
     if (!originAddress || !destinationAddress) return;
-    
+
     // Evita múltiplas requisições simultâneas
     if (isSearchingRef.current) {
       console.log('Já existe uma busca em andamento...');
       return;
     }
-    
+
     isSearchingRef.current = true;
     setLoading(true);
     setError(null);
-    
+
     try {
       // 1. Geocodificar endereços usando TomTom
       const [originCoords, destCoords] = await Promise.all([
         geocodeAddress(originAddress),
         geocodeAddress(destinationAddress)
       ]);
-      
+
       // 2. Buscar veículos em tempo REAL via Moovit
       const realtimeVehiclesData = await getRealtimeVehicles(originCoords);
-      
+
       // 3. Buscar rota no SEMOB/DFTrans (OTP)
       const transitRoute = await getSEMOBRoute(originCoords, destCoords);
-      
+
       // 4. Buscar paradas próximas via API SEMOB
       const nearbyBuses = await getNearbyBuses(originCoords);
-      
+
       // 5. Combinar resultados
       const combinedRoutes = combineRoutes(transitRoute, nearbyBuses, originAddress, destinationAddress);
-      
+
       // 6. Adicionar dados de GPS real aos veículos
       const routesWithGPS = combinedRoutes.map(route => {
-        const realVehicle = realtimeVehiclesData.find(v => 
+        const realVehicle = realtimeVehiclesData.find(v =>
           v.line === route.line || v.routeId === route.routeId
         );
         if (realVehicle) {
@@ -95,13 +95,13 @@ const useRouteSearch = () => {
         }
         return { ...route, isLive: false };
       });
-      
+
       setRoutes(routesWithGPS);
-      
+
       if (realtimeVehiclesData.length > 0) {
         console.log('🎯 GPS REAL disponível para', realtimeVehiclesData.length, 'veículos');
       }
-      
+
     } catch (err) {
       setError(err.message || 'Erro ao buscar rotas');
       console.error('Route search error:', err);
@@ -121,7 +121,7 @@ const useRouteSearch = () => {
           limit: 1
         }
       });
-      
+
       if (response.data.results && response.data.results[0]) {
         const location = response.data.results[0].position;
         return {
@@ -151,9 +151,9 @@ const useRouteSearch = () => {
           wheelchair: false,
           showIntermediateStops: true
         },
-        timeout: 15000
+        timeout: 60000
       });
-      
+
       if (response.data && response.data.plan && response.data.plan.itineraries) {
         return response.data.plan.itineraries;
       }
@@ -175,12 +175,12 @@ const useRouteSearch = () => {
         },
         timeout: 10000
       });
-      
+
       if (response.data && Array.isArray(response.data)) {
         const nearbyStops = response.data
           .filter(stop => calculateDistance(coords, stop) < 1)
           .slice(0, 5);
-        
+
         return nearbyStops.map(stop => ({
           stopId: stop.id,
           stopName: stop.name,
@@ -200,10 +200,10 @@ const useRouteSearch = () => {
     const R = 6371;
     const dLat = (point2.lat - point1.lat) * Math.PI / 180;
     const dLon = (point2.lon - point1.lon) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(point1.lat * Math.PI / 180) * Math.cos(point2.lat * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(point1.lat * Math.PI / 180) * Math.cos(point2.lat * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
 
@@ -219,21 +219,21 @@ const useRouteSearch = () => {
     if (!itineraries || itineraries.length === 0) {
       return [];
     }
-    
+
     const processedRoutes = [];
-    
+
     itineraries.forEach((itinerary, idx) => {
       const legs = itinerary.legs || [];
       const transitLegs = legs.filter(leg => leg.mode && leg.mode !== 'WALK');
       const walkLegs = legs.filter(leg => leg.mode === 'WALK');
-      
+
       const totalWalkTime = walkLegs.reduce((sum, leg) => sum + (leg.duration || 0), 0) / 60;
       const totalDuration = (itinerary.duration || 0) / 60;
-      
+
       transitLegs.forEach((leg, legIdx) => {
         const routeId = leg.route || leg.routeId || leg.trip?.routeId || 'N/A';
         const routeShortName = leg.routeShortName || leg.trip?.routeShortName || routeId;
-        
+
         processedRoutes.push({
           id: `${routeId}_${idx}_${legIdx}`,
           line: routeShortName,
@@ -253,7 +253,7 @@ const useRouteSearch = () => {
         });
       });
     });
-    
+
     return processedRoutes.slice(0, 5);
   };
 
@@ -263,10 +263,10 @@ const useRouteSearch = () => {
       if (window.__lastOriginCoords) {
         console.log('🔄 Atualizando veículos em tempo real Moovit...');
         const newVehicles = await getRealtimeVehicles(window.__lastOriginCoords);
-        
-        setRoutes(prevRoutes => 
+
+        setRoutes(prevRoutes =>
           prevRoutes.map(route => {
-            const realVehicle = newVehicles.find(v => 
+            const realVehicle = newVehicles.find(v =>
               v.line === route.line || v.routeId === route.routeId
             );
             if (realVehicle) {
@@ -287,13 +287,13 @@ const useRouteSearch = () => {
         );
       }
     };
-    
+
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
-    
-    intervalRef.current = setInterval(refreshRealtimeVehicles, 15000);
-    
+
+    intervalRef.current = setInterval(refreshRealtimeVehicles, 60000);
+
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -302,10 +302,10 @@ const useRouteSearch = () => {
     };
   }, []);
 
-  return { 
-    routes, 
-    loading, 
-    error, 
+  return {
+    routes,
+    loading,
+    error,
     searchRoute,
     realtimeVehicles
   };
@@ -332,7 +332,7 @@ const LocationInput = ({ value, onChange, placeholder, icon: Icon, onDetectLocat
       setSuggestions([]);
       return;
     }
-    
+
     setLoading(true);
     try {
       const response = await axios.get(`https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json`, {
@@ -346,7 +346,7 @@ const LocationInput = ({ value, onChange, placeholder, icon: Icon, onDetectLocat
           language: 'pt-BR'
         }
       });
-      
+
       if (response.data.results) {
         setSuggestions(response.data.results);
         setShowSuggestions(true);
@@ -361,7 +361,7 @@ const LocationInput = ({ value, onChange, placeholder, icon: Icon, onDetectLocat
   const handleChange = (e) => {
     const newValue = e.target.value;
     onChange(newValue);
-    
+
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => searchAddress(newValue), 500);
   };
@@ -451,7 +451,7 @@ const RouteResult = ({ routes, origin, destination, loading }) => {
   }
 
   if (!routes || routes.length === 0) return null;
-  
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -474,7 +474,7 @@ const RouteResult = ({ routes, origin, destination, loading }) => {
           {routes.length} {routes.length === 1 ? 'opção' : 'opções'}
         </div>
       </div>
-      
+
       <div className="space-y-2 md:space-y-3">
         <div className="flex items-center gap-1.5 md:gap-2">
           <div className="h-1 w-1 md:h-1.5 md:w-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -482,22 +482,20 @@ const RouteResult = ({ routes, origin, destination, loading }) => {
             {routes.some(r => r.isLive) ? '🚀 GPS REAL - Veículos ao vivo' : 'Dados de horários - SEMOB/DFTrans'}
           </span>
         </div>
-        
+
         {routes.map((route, idx) => (
           <motion.div
             key={route.id}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: idx * 0.05, ...spring }}
-            className={`group relative overflow-hidden rounded-lg md:rounded-xl border p-3 md:p-4 hover:shadow-lg transition-all cursor-pointer ${
-              route.isLive ? 'border-green-300 bg-green-50/30' : 'border-gray-200 bg-white'
-            }`}
+            className={`group relative overflow-hidden rounded-lg md:rounded-xl border p-3 md:p-4 hover:shadow-lg transition-all cursor-pointer ${route.isLive ? 'border-green-300 bg-green-50/30' : 'border-gray-200 bg-white'
+              }`}
           >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
-                <div className={`rounded-full p-1.5 md:p-2.5 flex-shrink-0 ${
-                  route.isLive ? 'bg-green-100' : 'bg-blue-100'
-                }`}>
+                <div className={`rounded-full p-1.5 md:p-2.5 flex-shrink-0 ${route.isLive ? 'bg-green-100' : 'bg-blue-100'
+                  }`}>
                   {route.mode === 'BUS' || route.mode === 'TRAM' ? (
                     <Bus className={`h-4 w-4 md:h-5 md:w-5 ${route.isLive ? 'text-green-600' : 'text-blue-600'}`} strokeWidth={1.5} />
                   ) : (
@@ -554,9 +552,8 @@ const RouteResult = ({ routes, origin, destination, loading }) => {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className={`rounded-full px-3 md:px-4 py-1 md:py-1.5 text-[10px] md:text-xs font-medium text-white transition flex-shrink-0 self-start sm:self-center ${
-                  route.isLive ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
+                className={`rounded-full px-3 md:px-4 py-1 md:py-1.5 text-[10px] md:text-xs font-medium text-white transition flex-shrink-0 self-start sm:self-center ${route.isLive ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
               >
                 {route.isLive ? 'Ver no mapa' : 'Detalhes'}
               </motion.button>
@@ -576,20 +573,20 @@ function App() {
   const [selectedMode, setSelectedMode] = useState('bus');
   const [hasSearched, setHasSearched] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
-  
+
   const { routes, loading, error, searchRoute } = useRouteSearch();
   const searchRef = useRef(null);
-  
+
   // Controle de primeira busca e auto-refresh
   const isFirstSearchRef = useRef(true);
-  
+
   // Salvar últimos valores para o auto-refresh
   useEffect(() => {
     if (origin && destination && selectedMode) {
       window.__lastOrigin = origin;
       window.__lastDestination = destination;
       window.__lastMode = selectedMode;
-      
+
       // Salvar coordenadas para refresh
       const saveCoordinates = async () => {
         try {
@@ -601,9 +598,9 @@ function App() {
           console.error('Erro ao salvar coordenadas:', error);
         }
       };
-      
+
       saveCoordinates();
-      
+
       if (!isFirstSearchRef.current) {
         console.log('Parâmetros atualizados, próximo refresh em 15 segundos');
       }
@@ -691,10 +688,10 @@ function App() {
             transition={{ duration: 1 }}
             className="absolute inset-0"
           >
-            <img 
-              src={carouselImages[activeSlide].src} 
+            <img
+              src={carouselImages[activeSlide].src}
               alt={carouselImages[activeSlide].title}
-              className="h-full w-full object-cover" 
+              className="h-full w-full object-cover"
             />
             <div className="absolute inset-0 bg-black/40" />
           </motion.div>
@@ -709,17 +706,17 @@ function App() {
             <div className="inline-flex items-center gap-1.5 md:gap-2 rounded-full bg-white/10 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 mb-4 md:mb-6">
               <Circle className="h-1.5 w-1.5 md:h-2 md:w-2 fill-green-500 text-green-500 animate-pulse" />
               <span className="text-[10px] md:text-xs font-medium text-white/90">
-                 GPS REAL - Veículos monitorados ao vivo
+                GPS REAL - Veículos monitorados ao vivo
               </span>
             </div>
-            
+
             <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-3 md:mb-4 leading-tight">
               Mobilidade em Brasília
             </h1>
             <p className="text-base sm:text-lg md:text-xl text-white/90 mb-6 md:mb-8 px-2">
               O monitoramento mais veloz da capital, a um toque de você.
             </p>
-            
+
             <button
               onClick={scrollToSearch}
               className="bg-blue-600 text-white rounded-full px-6 py-3 md:px-8 md:py-4 font-semibold text-sm md:text-lg hover:bg-blue-700 transition inline-flex items-center gap-2 shadow-2xl"
@@ -735,9 +732,8 @@ function App() {
             <button
               key={idx}
               onClick={() => setActiveSlide(idx)}
-              className={`h-1 rounded-full transition-all ${
-                idx === activeSlide ? 'w-6 md:w-8 bg-white' : 'w-1.5 md:w-1.5 bg-white/50'
-              }`}
+              className={`h-1 rounded-full transition-all ${idx === activeSlide ? 'w-6 md:w-8 bg-white' : 'w-1.5 md:w-1.5 bg-white/50'
+                }`}
             />
           ))}
         </div>
@@ -761,7 +757,7 @@ function App() {
                 onDetectLocation={getCurrentLocation}
                 detectingLocation={locationLoading}
               />
-              
+
               <LocationInput
                 value={destination}
                 onChange={setDestination}
@@ -783,11 +779,10 @@ function App() {
                   <button
                     key={mode.name}
                     onClick={() => setSelectedMode(mode.type)}
-                    className={`rounded-xl md:rounded-2xl border p-2 md:p-4 text-center transition-all ${
-                      selectedMode === mode.type 
-                        ? 'border-blue-500 bg-blue-50 shadow-md' 
+                    className={`rounded-xl md:rounded-2xl border p-2 md:p-4 text-center transition-all ${selectedMode === mode.type
+                        ? 'border-blue-500 bg-blue-50 shadow-md'
                         : 'border-gray-200 bg-white hover:bg-gray-50'
-                    }`}
+                      }`}
                   >
                     <mode.icon className={`h-5 w-5 md:h-6 md:w-6 mx-auto mb-1 md:mb-2 ${selectedMode === mode.type ? 'text-blue-600' : 'text-gray-600'}`} />
                     <p className="text-xs md:text-sm font-medium text-gray-900">{mode.name}</p>
@@ -802,11 +797,10 @@ function App() {
               whileTap={{ scale: 0.98 }}
               onClick={handleSearch}
               disabled={!origin || !destination || loading}
-              className={`mt-5 md:mt-6 w-full rounded-xl md:rounded-2xl py-2.5 md:py-3.5 font-semibold transition-all flex items-center justify-center gap-2 text-sm md:text-base ${
-                origin && destination && !loading
+              className={`mt-5 md:mt-6 w-full rounded-xl md:rounded-2xl py-2.5 md:py-3.5 font-semibold transition-all flex items-center justify-center gap-2 text-sm md:text-base ${origin && destination && !loading
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}
+                }`}
             >
               {loading ? (
                 <>
@@ -819,7 +813,7 @@ function App() {
             </motion.button>
 
             {(hasSearched || routes.length > 0) && (
-              <RouteResult 
+              <RouteResult
                 routes={routes}
                 origin={origin}
                 destination={destination}
