@@ -7,7 +7,7 @@ import {
   Loader2, Sun, Moon, AlertTriangle
 } from 'lucide-react';
 import axios from 'axios';
-import RouteResultRefatorado from './components/RouteResultRefatorado';
+import RouteResultRefatorado from './comp/RouteResultRefatorado';
 
 // ─── API CONFIG ────────────────────────────────
 const TOMTOM_API_KEY = 'kVt12B5jgJTHfcvXLLDSPgcX6bz4f7R1';
@@ -429,6 +429,7 @@ function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [dark, setDark] = useState(() => { try { return localStorage.getItem('lb-theme') === 'dark'; } catch { return false; } });
+  const [userLocationCoords, setUserLocationCoords] = useState(null);
   const { routes, loading, error, searchRoute } = useRouteSearch();
   const searchRef = useRef(null);
 
@@ -447,6 +448,8 @@ function App() {
     if (!navigator.geolocation) { setLocationLoading(false); return; }
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
+        // Salvar coords brutas para o modal de caminhada
+        setUserLocationCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
         try {
           const r = await axios.get(`https://api.tomtom.com/search/2/reverseGeocode/${pos.coords.latitude},${pos.coords.longitude}.json`,
             { params: { key: TOMTOM_API_KEY, returnSpeedLimit: false, language: 'pt-BR' } });
@@ -554,7 +557,7 @@ function App() {
               {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Buscando com GPS REAL…</> : 'Buscar rota agora'}
             </motion.button>
 
-            {(hasSearched || routes.length > 0) && <RouteResultRefatorado routes={routes} origin={origin} destination={destination} loading={loading} />}
+            {(hasSearched || routes.length > 0) && <RouteResultRefatorado routes={routes} origin={origin} destination={destination} loading={loading} userLocation={userLocationCoords} isDark={dark} />}
 
             {error && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
