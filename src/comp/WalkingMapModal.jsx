@@ -1,15 +1,10 @@
-<<<<<<< HEAD
 // src/comp/WalkingMapModal.jsx — Navegação 3D estilo TomTom
-=======
-// src/comp/WalkingMapModal.jsx
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Footprints, Navigation, ArrowLeft, ArrowRight, ArrowUp, RotateCcw, Play, Square, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
 
 const TOMTOM_API_KEY = 'kVt12B5jgJTHfcvXLLDSPgcX6bz4f7R1';
 
-<<<<<<< HEAD
 // ── Utils ─────────────────────────────────────────────────────────────────────
 const haversine = (lat1, lon1, lat2, lon2) => {
   const R = 6371000, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
@@ -36,30 +31,6 @@ const getManeuverIcon = (type) => {
 };
 
 // ── SDK TomTom ────────────────────────────────────────────────────────────────
-=======
-const haversine = (lat1, lon1, lat2, lon2) => {
-  const R = 6371000;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-};
-
-const calcBearing = (lat1, lon1, lat2, lon2) => {
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI/180);
-  const x = Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180) - Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);
-  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
-};
-
-const fmtDist = (m) => m < 1000 ? `${Math.round(m)}m` : `${(m/1000).toFixed(1)}km`;
-const fmtTime = (sec) => {
-  if (sec < 60) return `${sec}s`;
-  const m = Math.floor(sec/60), s = sec % 60;
-  return s > 0 ? `${m}min ${s}s` : `${m}min`;
-};
-
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
 let sdkLoadPromise = null;
 const loadTomTomSDK = () => {
   if (sdkLoadPromise) return sdkLoadPromise;
@@ -78,7 +49,6 @@ const loadTomTomSDK = () => {
   return sdkLoadPromise;
 };
 
-<<<<<<< HEAD
 // ── Rota TomTom com instruções ────────────────────────────────────────────────
 const fetchWalkingRoute = async (origin, dest) => {
   const url = `https://api.tomtom.com/routing/1/calculateRoute/${origin.lat},${origin.lon}:${dest.lat},${dest.lon}/json`
@@ -105,24 +75,6 @@ const fetchWalkingRoute = async (origin, dest) => {
 };
 
 // ── Geocode ───────────────────────────────────────────────────────────────────
-=======
-const fetchWalkingRoute = async (origin, dest) => {
-  const url = `https://api.tomtom.com/routing/1/calculateRoute/${origin.lat},${origin.lon}:${dest.lat},${dest.lon}/json?key=${TOMTOM_API_KEY}&travelMode=pedestrian&routeType=shortest&traffic=true`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Erro ao calcular rota');
-  const data = await res.json();
-  const route = data.routes?.[0];
-  if (!route) throw new Error('Nenhuma rota encontrada');
-  const points = route.legs[0].points.map(p => [p.longitude, p.latitude]);
-  return {
-    points,
-    distanceMeters: route.summary.lengthInMeters,
-    travelTimeSeconds: route.summary.travelTimeInSeconds,
-    geojson: { type: 'Feature', geometry: { type: 'LineString', coordinates: points } },
-  };
-};
-
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
 const geocodeAddress = async (address) => {
   const res = await fetch(`https://api.tomtom.com/search/2/geocode/${encodeURIComponent(address)}.json?key=${TOMTOM_API_KEY}&countrySet=BR&limit=1`);
   const data = await res.json();
@@ -131,26 +83,18 @@ const geocodeAddress = async (address) => {
   return { lat: loc.lat, lon: loc.lon };
 };
 
-<<<<<<< HEAD
 // ── Componente ────────────────────────────────────────────────────────────────
-=======
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
 const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const userMarkerRef = useRef(null);
-  const userMarkerElRef = useRef(null);
   const watchIdRef = useRef(null);
   const intervalRef = useRef(null);
   const startTimeRef = useRef(null);
   const lastPosRef = useRef(null);
-<<<<<<< HEAD
   const routeDataRef = useRef(null);
   const resolvedOriginRef = useRef(null);
   const resolvedDestRef = useRef(null);
-=======
-  const followModeRef = useRef(true);
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
 
   const [sdkReady, setSdkReady] = useState(false);
   const [routeData, setRouteData] = useState(null);
@@ -159,13 +103,8 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
   const [resolvedOrigin, setResolvedOrigin] = useState(null);
   const [resolvedDest, setResolvedDest] = useState(null);
 
-<<<<<<< HEAD
   // Navegação state
   const [navigating, setNavigating] = useState(false); // true = modo 3D nav
-=======
-  const [userPos, setUserPos] = useState(userLocation || null);
-  const [bearing, setBearing] = useState(0);
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
   const [tracking, setTracking] = useState(false);
   const [userPos, setUserPos] = useState(userLocation || null);
   const [bearing, setBearing] = useState(0);
@@ -173,19 +112,12 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
   const [distCovered, setDistCovered] = useState(0);
   const [distRemaining, setDistRemaining] = useState(null);
   const [arrived, setArrived] = useState(false);
-<<<<<<< HEAD
   const [accuracy, setAccuracy] = useState(null);
   const [currentInstruction, setCurrentInstruction] = useState(null);
   const [nextInstruction, setNextInstruction] = useState(null);
   const [showOverview, setShowOverview] = useState(false); // alternar entre 3D e visão geral
 
   // ── Resolver coordenadas ──────────────────────────────────────────────────
-=======
-  const [followMode, setFollowMode] = useState(true);
-  const [accuracy, setAccuracy] = useState(null);
-
-  // Resolver coordenadas
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
   useEffect(() => {
     const resolve = async () => {
       try {
@@ -208,11 +140,8 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
 
         setResolvedOrigin(orig);
         setResolvedDest(dest);
-<<<<<<< HEAD
         resolvedOriginRef.current = orig;
         resolvedDestRef.current = dest;
-=======
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
       } catch (e) {
         setRouteError('Erro ao resolver endereços: ' + e.message);
         setLoadingRoute(false);
@@ -221,7 +150,6 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
     resolve();
   }, []);
 
-<<<<<<< HEAD
   // ── SDK ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     loadTomTomSDK().then(() => setSdkReady(true)).catch(() => setRouteError('Falha ao carregar SDK'));
@@ -230,57 +158,29 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
   // ── Inicializar mapa ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!sdkReady || !mapContainerRef.current || mapRef.current || !resolvedOrigin) return;
-=======
-  useEffect(() => {
-    loadTomTomSDK().then(() => setSdkReady(true)).catch(() => setRouteError('Falha ao carregar SDK do mapa'));
-  }, []);
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
 
-  useEffect(() => {
-    if (!sdkReady || !mapContainerRef.current || mapRef.current || !resolvedOrigin) return;
     const map = window.tt.map({
       key: TOMTOM_API_KEY,
       container: mapContainerRef.current,
       center: [resolvedOrigin.lon, resolvedOrigin.lat],
-<<<<<<< HEAD
       zoom: 15,
       style: `https://api.tomtom.com/map/1/style/22.2.1-1/basic_main.json?key=${TOMTOM_API_KEY}`,
-=======
-      zoom: 16,
-      style: isDark
-        ? 'https://api.tomtom.com/style/2/custom/style/dHRzdHlsZTo6OWY4ZDM5M2MtYTM4My00NGI5LTk0ZWMtNmE4ZjYxNzUyYjYw/drafts/0.json?key=' + TOMTOM_API_KEY
-        : `https://api.tomtom.com/map/1/style/22.2.1-1/basic_main.json?key=${TOMTOM_API_KEY}`,
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
       language: 'pt-BR',
       pitch: 0,
       bearing: 0,
     });
-<<<<<<< HEAD
 
-=======
-    map.addControl(new window.tt.NavigationControl({ showZoom: true, showCompass: true }), 'bottom-right');
-    map.on('dragstart', () => { followModeRef.current = false; setFollowMode(false); });
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
     mapRef.current = map;
 
     map.on('load', () => {
-<<<<<<< HEAD
       if (resolvedDest) addDestMarker(map, resolvedDest);
-=======
-      if (resolvedDest) addDestinationMarker(map, resolvedDest);
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
       addUserMarker(map, resolvedOrigin);
     });
-    return () => { map.remove(); mapRef.current = null; };
-  }, [sdkReady, resolvedOrigin, resolvedDest]);
 
-<<<<<<< HEAD
     return () => { map.remove(); mapRef.current = null; };
   }, [sdkReady, resolvedOrigin]);
 
   // ── Buscar rota ───────────────────────────────────────────────────────────
-=======
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
   useEffect(() => {
     if (!resolvedOrigin || !resolvedDest) return;
     setLoadingRoute(true);
@@ -306,7 +206,6 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
   const drawRoute = (map, data) => {
     if (!data || !map.getStyle) return;
     try {
-<<<<<<< HEAD
       if (map.getSource('walk-route')) { map.getSource('walk-route').setData(data.geojson); return; }
       map.addSource('walk-route', { type: 'geojson', data: data.geojson });
       // Sombra
@@ -335,40 +234,11 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
     const el = document.createElement('div');
     el.innerHTML = `<div style="width:36px;height:36px;border-radius:50% 50% 50% 0;background:#1a6eff;border:3px solid #fff;box-shadow:0 4px 16px rgba(26,110,255,0.5);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;"><div style="transform:rotate(45deg);font-size:15px;">${route.isWalk?'🏁':'🚌'}</div></div>`;
     new window.tt.Marker({ element: el, anchor:'bottom' }).setLngLat([dest.lon, dest.lat]).addTo(map);
-=======
-      if (map.getSource('walk-route')) { map.getSource('walk-route').setData(rd.geojson); return; }
-      map.addSource('walk-route', { type: 'geojson', data: rd.geojson });
-      map.addLayer({ id: 'walk-route-shadow', type: 'line', source: 'walk-route',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#000', 'line-width': 8, 'line-opacity': 0.15, 'line-blur': 4 } });
-      map.addLayer({ id: 'walk-route-line', type: 'line', source: 'walk-route',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#00f3ff', 'line-width': 5, 'line-opacity': 0.95 } });
-      map.addLayer({ id: 'walk-route-dash', type: 'line', source: 'walk-route',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-dasharray': [2,4], 'line-opacity': 0.7 } });
-    } catch (_) {}
-  }, [routeData]);
-
-  const fitBounds = (map, points) => {
-    if (!points?.length) return;
-    const lons = points.map(p => p[0]), lats = points.map(p => p[1]);
-    map.fitBounds([[Math.min(...lons), Math.min(...lats)],[Math.max(...lons), Math.max(...lats)]],
-      { padding: { top: 80, bottom: 220, left: 40, right: 40 }, duration: 800 });
-  };
-
-  const addDestinationMarker = (map, dest) => {
-    const el = document.createElement('div');
-    el.innerHTML = `<div style="width:40px;height:40px;border-radius:50% 50% 50% 0;background:linear-gradient(135deg,#0071e3,#00f3ff);border:3px solid #fff;box-shadow:0 4px 16px rgba(0,113,227,0.5);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;"><div style="transform:rotate(45deg);color:white;font-size:16px;">${route.isWalk ? '🏁' : '🚌'}</div></div>`;
-    el.style.cursor = 'pointer';
-    new window.tt.Marker({ element: el, anchor: 'bottom' }).setLngLat([dest.lon, dest.lat]).addTo(map);
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
   };
 
   const addUserMarker = (map, pos) => {
     if (userMarkerRef.current) { userMarkerRef.current.setLngLat([pos.lon, pos.lat]); return; }
     const el = document.createElement('div');
-<<<<<<< HEAD
     el.style.cssText = 'position:relative;width:28px;height:28px;';
     el.innerHTML = `
       <div style="position:absolute;inset:0;border-radius:50%;background:rgba(26,110,255,0.2);animation:pr 2s infinite;"></div>
@@ -393,20 +263,6 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
   }, []);
 
   // ── Atualizar posição ──────────────────────────────────────────────────────
-=======
-    el.style.cssText = 'position:relative;width:32px;height:32px;';
-    el.innerHTML = `
-      <div style="position:absolute;inset:0;border-radius:50%;background:rgba(0,113,227,0.25);animation:pulse-ring 2s infinite;"></div>
-      <div id="um-dot" style="position:absolute;inset:6px;border-radius:50%;background:#0071e3;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,113,227,0.6);display:flex;align-items:center;justify-content:center;transition:transform 0.4s ease;">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><path d="M12 2L8 20l4-3 4 3z"/></svg>
-      </div>
-      <style>@keyframes pulse-ring{0%{transform:scale(1);opacity:0.6}100%{transform:scale(2.8);opacity:0}}</style>
-    `;
-    userMarkerElRef.current = el;
-    userMarkerRef.current = new window.tt.Marker({ element: el, anchor: 'center' }).setLngLat([pos.lon, pos.lat]).addTo(map);
-  };
-
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
   const updatePosition = useCallback((pos) => {
     const { latitude: lat, longitude: lon, accuracy: acc } = pos.coords;
     setUserPos({ lat, lon });
@@ -423,7 +279,6 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
       if (userMarkerRef.current) userMarkerRef.current.setLngLat([lon, lat]);
       else addUserMarker(mapRef.current, { lat, lon });
 
-<<<<<<< HEAD
       // Modo navegação 3D: câmera segue com pitch e bearing
       mapRef.current.easeTo({
         center: [lon, lat],
@@ -452,35 +307,9 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
 
   // ── Iniciar navegação ─────────────────────────────────────────────────────
   const startNavigation = useCallback(() => {
-=======
-      // Rotacionar seta de direção
-      if (userMarkerElRef.current) {
-        const dot = userMarkerElRef.current.querySelector('#um-dot');
-        if (dot) dot.style.transform = `rotate(${newBearing}deg)`;
-      }
-
-      // Seguir ao vivo com rotação do mapa
-      if (followModeRef.current) {
-        mapRef.current.easeTo({ center: [lon, lat], zoom: 17, bearing: newBearing, duration: 600 });
-      }
-
-      if (routeData && mapRef.current.getSource('walk-route')) drawRoute(mapRef.current, routeData);
-    }
-
-    if (routeData && resolvedOrigin) {
-      const covered = Math.min(haversine(resolvedOrigin.lat, resolvedOrigin.lon, lat, lon), routeData.distanceMeters);
-      setDistCovered(covered);
-      setDistRemaining(Math.max(0, routeData.distanceMeters - covered));
-      if (resolvedDest && haversine(lat, lon, resolvedDest.lat, resolvedDest.lon) < 30) setArrived(true);
-    }
-  }, [routeData, resolvedOrigin, resolvedDest]);
-
-  const startTracking = useCallback(() => {
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
     if (!navigator.geolocation) return;
     setNavigating(true);
     setTracking(true);
-<<<<<<< HEAD
     setShowOverview(false);
     startTimeRef.current = Date.now() - elapsed * 1000;
     intervalRef.current = setInterval(() => setElapsed(Math.floor((Date.now()-startTimeRef.current)/1000)), 1000);
@@ -488,16 +317,6 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
       updatePosition,
       err => console.warn('GPS:', err),
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
-=======
-    followModeRef.current = true;
-    setFollowMode(true);
-    startTimeRef.current = Date.now() - elapsed * 1000;
-    intervalRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000)), 1000);
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      updatePosition,
-      (err) => console.warn('GPS:', err),
-      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
     );
   }, [elapsed, updatePosition]);
 
@@ -509,7 +328,6 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
     if (mapRef.current) mapRef.current.easeTo({ pitch: 0, bearing: 0, zoom: 15, duration: 600 });
   }, []);
 
-<<<<<<< HEAD
   const toggleOverview = () => {
     setShowOverview(v => {
       const next = !v;
@@ -548,31 +366,10 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
 
   const etaSeconds = distRemaining!=null ? Math.round((distRemaining/1000)/4.8*3600) : routeData?.travelTimeSeconds ?? null;
   const progress = routeData ? Math.min(100,(distCovered/routeData.distanceMeters)*100) : 0;
-=======
-  const resetTracking = useCallback(() => {
-    stopTracking();
-    setElapsed(0); setDistCovered(0);
-    setDistRemaining(routeData?.distanceMeters ?? null);
-    setArrived(false); setBearing(0);
-    lastPosRef.current = null; startTimeRef.current = null;
-    if (mapRef.current && routeData) { fitBounds(mapRef.current, routeData.points); mapRef.current.setBearing(0); }
-  }, [stopTracking, routeData]);
-
-  const recenter = () => {
-    followModeRef.current = true; setFollowMode(true);
-    if (mapRef.current && userPos) mapRef.current.easeTo({ center: [userPos.lon, userPos.lat], zoom: 17, bearing, duration: 500 });
-  };
-
-  useEffect(() => () => { stopTracking(); }, []);
-
-  const etaSeconds = distRemaining != null ? Math.round((distRemaining/1000)/4.8*3600) : routeData?.travelTimeSeconds ?? null;
-  const progress = routeData ? Math.min(100, (distCovered/routeData.distanceMeters)*100) : 0;
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
   const destName = resolvedDest?.name || route.fromStop || route.destination || 'Destino';
 
   return (
     <AnimatePresence>
-<<<<<<< HEAD
       <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
         className="fixed inset-0 z-50 flex flex-col" style={{background:'#000'}}>
 
@@ -586,19 +383,6 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
                 <div className="absolute inset-0 rounded-full border-2 border-blue-500/30 animate-ping" />
                 <div className="absolute inset-0 rounded-full border-2 border-t-blue-500 animate-spin" />
                 <Footprints className="absolute inset-0 m-auto h-6 w-6 text-blue-400" />
-=======
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex flex-col" style={{ background: 'var(--bg-primary)' }}>
-
-        {/* Mapa */}
-        <div ref={mapContainerRef} className="flex-1 w-full relative">
-          {(!sdkReady || loadingRoute) && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3" style={{ background: 'var(--bg-primary)' }}>
-              <div className="relative w-12 h-12">
-                <div className="absolute inset-0 rounded-full border-2 border-cyan-400/30 animate-ping" />
-                <div className="absolute inset-0 rounded-full border-2 border-t-cyan-400 animate-spin" />
-                <Footprints className="absolute inset-0 m-auto h-5 w-5 text-cyan-400" />
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
               </div>
               <p className="text-sm font-medium text-white/70">
                 {!sdkReady ? 'Carregando mapa…' : 'Calculando rota…'}
@@ -607,7 +391,6 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
           )}
 
           {routeError && (
-<<<<<<< HEAD
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 p-6 bg-gray-950">
               <MapPin className="h-8 w-8 text-red-400" />
               <p className="text-sm text-center text-red-400">{routeError}</p>
@@ -661,160 +444,6 @@ const WalkingMapModal = ({ route, userLocation, onClose, isDark }) => {
                       <p className="text-white/70 text-xs mt-1 truncate">
                         Depois: {nextInstruction.message}
                       </p>
-=======
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 p-6">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <MapPin className="h-6 w-6 text-red-500" />
-              </div>
-              <p className="text-sm text-center font-medium text-red-500">{routeError}</p>
-            </div>
-          )}
-
-          {/* Botão fechar */}
-          <motion.button whileTap={{ scale: 0.9 }} onClick={onClose}
-            className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-xl border shadow-lg"
-            style={{ background: 'var(--card-bg)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}>
-            <X className="h-4 w-4" />
-          </motion.button>
-
-          {/* Badge topo */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-xl border shadow-lg"
-              style={{ background: 'var(--card-bg)', borderColor: 'var(--border)' }}>
-              <Footprints className="h-3.5 w-3.5 text-cyan-400" />
-              <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Rota a pé</span>
-              {tracking && (
-                <>
-                  <span className="w-px h-3" style={{ background: 'var(--border)' }} />
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inset-0 rounded-full bg-green-400 animate-ping opacity-70" />
-                    <span className="relative rounded-full h-2 w-2 bg-green-500" />
-                  </span>
-                  <span className="text-[10px] font-bold text-green-400">AO VIVO</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Botão recentrar */}
-          {tracking && !followMode && (
-            <motion.button initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-              onClick={recenter}
-              className="absolute bottom-56 right-4 z-20 w-11 h-11 rounded-full flex items-center justify-center shadow-lg border"
-              style={{ background: 'var(--card-bg)', borderColor: 'var(--border)' }} title="Recentrar">
-              <Navigation className="h-5 w-5 text-[var(--accent)]" strokeWidth={2} />
-            </motion.button>
-          )}
-
-          {/* Badge precisão GPS */}
-          {tracking && accuracy != null && (
-            <div className="absolute top-16 right-4 z-20 px-2 py-1 rounded-full text-[10px] font-medium backdrop-blur-xl border"
-              style={{ background: 'var(--card-bg)', borderColor: 'var(--border)', color: accuracy < 20 ? '#34c759' : accuracy < 50 ? '#ff9f0a' : '#ff3b30' }}>
-              GPS ±{accuracy}m
-            </div>
-          )}
-        </div>
-
-        {/* Painel inferior */}
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2, type: 'spring', stiffness: 120, damping: 20 }}
-          className="relative flex-shrink-0 rounded-t-3xl border-t shadow-2xl"
-          style={{ background: 'var(--card-bg)', borderColor: 'var(--border)', backdropFilter: 'blur(24px)' }}>
-
-          <button onClick={() => setPanelOpen(o => !o)} className="w-full flex flex-col items-center pt-3 pb-1">
-            <div className="w-10 h-1 rounded-full mb-2" style={{ background: 'var(--border)' }} />
-            <div className="flex items-center gap-1" style={{ color: 'var(--text-tertiary)' }}>
-              {panelOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
-            </div>
-          </button>
-
-          <AnimatePresence>
-            {panelOpen && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22 }} style={{ overflow: 'hidden' }}>
-                <div className="px-5 pb-6 space-y-4">
-
-                  {/* Destino */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                      style={{ background: 'rgba(0,113,227,0.12)', border: '1px solid rgba(0,113,227,0.25)' }}>
-                      <MapPin className="h-4 w-4 text-[var(--accent)]" strokeWidth={1.5} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>Destino</p>
-                      <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{destName}</p>
-                    </div>
-                  </div>
-
-                  {/* Métricas */}
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { icon: Navigation, color: 'text-cyan-400', value: distRemaining != null ? fmtDist(distRemaining) : '—', label: 'restante' },
-                      { icon: Clock, color: 'text-[var(--accent)]', value: etaSeconds != null ? fmtTime(etaSeconds) : '—', label: 'ETA' },
-                      { icon: Footprints, color: 'text-green-400', value: fmtTime(elapsed), label: 'caminhando' },
-                    ].map(({ icon: Icon, color, value, label }) => (
-                      <div key={label} className="rounded-2xl p-3 text-center" style={{ background: 'var(--card-inner)', border: '1px solid var(--border)' }}>
-                        <Icon className={`h-4 w-4 mx-auto mb-1 ${color}`} strokeWidth={1.5} />
-                        <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>{value}</p>
-                        <p className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{label}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Barra de progresso */}
-                  <div>
-                    <div className="flex justify-between mb-1.5">
-                      <span className="text-[10px] font-semibold" style={{ color: 'var(--text-tertiary)' }}>Progresso</span>
-                      <span className="text-[10px] font-bold text-cyan-400">{Math.round(progress)}%</span>
-                    </div>
-                    <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--card-inner)', border: '1px solid var(--border)' }}>
-                      <motion.div className="h-full rounded-full"
-                        style={{ background: 'linear-gradient(90deg,#0071e3,#00f3ff)', boxShadow: '0 0 8px rgba(0,243,255,0.5)' }}
-                        initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.6 }} />
-                    </div>
-                    {routeData && (
-                      <div className="flex justify-between mt-1">
-                        <span className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>{fmtDist(distCovered)} percorrido</span>
-                        <span className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>{fmtDist(routeData.distanceMeters)} total</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {arrived && (
-                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                      className="rounded-2xl p-3 text-center"
-                      style={{ background: 'rgba(52,199,89,0.12)', border: '1px solid rgba(52,199,89,0.3)' }}>
-                      <p className="text-sm font-bold text-green-400">🎉 {route.isWalk ? 'Você chegou ao destino!' : 'Você chegou ao ponto de embarque!'}</p>
-                    </motion.div>
-                  )}
-
-                  {/* Controles */}
-                  <div className="flex gap-2">
-                    {!tracking ? (
-                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                        onClick={startTracking} disabled={!routeData}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold text-white disabled:opacity-40"
-                        style={{ background: 'linear-gradient(135deg,#0071e3,#00b4d8)' }}>
-                        <Play className="h-4 w-4" fill="currentColor" />
-                        {elapsed > 0 ? 'Retomar' : 'Iniciar navegação'}
-                      </motion.button>
-                    ) : (
-                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                        onClick={stopTracking}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold text-white"
-                        style={{ background: 'linear-gradient(135deg,#ff3b30,#ff6b35)' }}>
-                        <Square className="h-4 w-4" fill="currentColor" />
-                        Pausar
-                      </motion.button>
-                    )}
-                    {elapsed > 0 && (
-                      <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
-                        onClick={resetTracking}
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: 'var(--card-inner)', border: '1px solid var(--border)', color: 'var(--text-tertiary)' }}>
-                        <RotateCcw className="h-4 w-4" />
-                      </motion.button>
->>>>>>> 1dd17a7bf90d4f07eb726914bdbe1d9d576c7279
                     )}
                   </div>
                 </div>
