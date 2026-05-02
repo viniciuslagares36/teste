@@ -141,14 +141,42 @@ const useRouteSearch = () => {
       { stopId: '2', stopName: 'Parada W3 Sul', distanceKm: 0.5 }];
   };
 
-  const combineRoutes = (itineraries, _stops, origin, destination) => {
+  const combineRoutes = (itineraries, _stops, origin, destination, mode) => {
     if (!itineraries?.length) return [];
     const out = [];
     itineraries.forEach((it, idx) => {
       const legs = it.legs || [];
+      const totalDur = (it.duration || 0) / 60;
+      const totalDist = legs.reduce((s, l) => s + (l.distance || 0), 0) / 1000;
+
+      // Modo caminhada: criar uma rota com as pernas WALK
+      if (mode === 'walk') {
+        const walkLegs = legs.filter(l => l.mode === 'WALK');
+        if (walkLegs.length > 0 || it.duration > 0) {
+          out.push({
+            id: `walk_${idx}`,
+            line: 'A pé',
+            routeId: 'WALK',
+            destination, origin,
+            time: Math.ceil(totalDur),
+            estimatedTime: totalDur,
+            stops: 0,
+            distance: totalDist.toFixed(1),
+            walkMinutes: Math.ceil(totalDur),
+            fromStop: legs[0]?.from?.name || origin,
+            toStop: legs[legs.length - 1]?.to?.name || destination,
+            mode: 'WALK',
+            instruction: `Caminhe ${totalDist.toFixed(1)} km (~${Math.ceil(totalDur)} min) até o destino`,
+            tripId: null,
+            isWalk: true,
+          });
+        }
+        return;
+      }
+
+      // Modo ônibus/metrô: pegar legs de transporte
       const transit = legs.filter(l => l.mode && l.mode !== 'WALK');
       const walkTime = legs.filter(l => l.mode === 'WALK').reduce((s, l) => s + (l.duration || 0), 0) / 60;
-      const totalDur = (it.duration || 0) / 60;
       transit.forEach((leg, li) => {
         const routeId = leg.route || leg.routeId || leg.trip?.routeId || 'N/A';
         const shortName = leg.routeShortName || leg.trip?.routeShortName || routeId;
@@ -186,7 +214,32 @@ const useRouteSearch = () => {
       window.__lastOriginCoords = originCoords;
       const transitRoute = await getSEMOBRoute(originCoords, destCoords, signal, mode);
       const nearbyBuses = await getNearbyBuses(originCoords, signal);
-      const combined = combineRoutes(transitRoute, nearbyBuses, originAddress, destinationAddress);
+      let combined = combineRoutes(transitRoute, nearbyBuses, originAddress, destinationAddress, mode);
+
+      // Fallback para caminhada: se a API não retornou nada, calcular localmente
+      if (mode === 'walk' && combined.length === 0) {
+        const distKm = calcDist(originCoords, destCoords);
+        const walkMinutes = Math.ceil((distKm / 5) * 60); // ~5 km/h
+        combined = [{
+          id: 'walk_local',
+          line: 'A pé',
+          routeId: 'WALK',
+          destination: destinationAddress,
+          origin: originAddress,
+          time: walkMinutes,
+          estimatedTime: walkMinutes,
+          stops: 0,
+          distance: distKm.toFixed(1),
+          walkMinutes,
+          fromStop: originAddress,
+          toStop: destinationAddress,
+          mode: 'WALK',
+          instruction: `Caminhe ${distKm.toFixed(1)} km (~${walkMinutes} min) até o destino`,
+          tripId: null,
+          isWalk: true,
+          isLive: false,
+        }];
+      }
       setRoutes(combined.map(r => {
         const rv = realtimeData.find(v => sameLine(v.line, r.line) || sameLine(v.routeId, r.routeId));
         if (rv) {
